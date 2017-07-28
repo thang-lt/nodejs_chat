@@ -13,21 +13,22 @@ var server = require('http').Server(app);
 var io = require('socket.io')(server);
 server.listen(3001);
 
+var numUsers = 0;
+
 io.on("connection", function (socket) {
+  var addedUser = false;
   console.log("co nguoi ket noi: " + socket.id);
 
   socket.on('add user', function (user) {
-    console.log('vao add user');
     if(user_arr.indexOf(user)>=0){
       // failed
-      console.log('add user failed');
       socket.emit("login failed");
     }else {
       // success
-      console.log('add user success');
       user_arr.push(user)
       socket.username = user;
-
+      addedUser = true;
+      ++numUsers;
       socket.emit('login success', {
         username: user,
         numUsers: user_arr.length
@@ -35,7 +36,6 @@ io.on("connection", function (socket) {
 
       // when the client emits 'typing', we broadcast it to others
       socket.on('typing', function () {
-        console.log('nhan dc emit typing');
         socket.broadcast.emit('typing', {
           username: socket.username
         });
@@ -51,9 +51,29 @@ io.on("connection", function (socket) {
       // echo globally (all clients) that a person has connected
       socket.broadcast.emit('user joined', {
         username: user,
-        numUsers: user_arr.length
+        numUsers: numUsers
       });
 
+      // when the client emits 'new message', we broadcast it to others
+      socket.on('new message', function (message) {
+        socket.broadcast.emit('new message', {
+          username: socket.username,
+          message: message
+        });
+      });
+
+      // when the user disconnects.. perform this
+      socket.on('disconnect', function () {
+        if (addedUser) {
+          --numUsers;
+
+          // echo globally that this client has left
+          socket.broadcast.emit('user left', {
+            username: socket.username,
+            numUsers: numUsers
+          });
+        }
+      });
     }
   })
 

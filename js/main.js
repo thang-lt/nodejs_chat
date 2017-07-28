@@ -1,6 +1,6 @@
 $(function() {
 
-  var FADE_TIME = 150; // ms  
+  var FADE_TIME = 150; // ms
   var TYPING_TIMER_LENGTH = 400; // ms
   var COLORS = [
     '#e21400', '#91580f', '#f8a700', '#f78b00',
@@ -24,9 +24,25 @@ $(function() {
 
   var socket = io();
 
+  // send message
+  function sendMessage() {
+    var message = $inputMessage.val();
+
+    message = cleanInput(message);
+
+    if (message && connected) {
+      $inputMessage.val('');
+      addChatMessage({
+        username: username,
+        message: message
+      });
+    }
+
+    // tell server to execute
+    socket.emit('new message', message);
+  }
   // message left, join
   function addParticipantsMessage (data) {
-    console.log('send message');
     var message = '';
     if (data.numUsers === 1) {
       message += "there's 1 participant";
@@ -79,12 +95,9 @@ $(function() {
   }
 
   function setUsername() {
-    console.log("setUsername");
     username = cleanInput($usernameInput.val().trim());
-    console.log(username);
     // Tell the server your username
     socket.emit('add user', username);
-    console.log(username);
     if (username) {
       $loginPage.fadeOut();
       $chatPage.show();
@@ -100,7 +113,6 @@ $(function() {
     if (connected) {
       if (!typing) {
         typing = true;
-        console.log("emit typing");
         socket.emit('typing');
       }
     }
@@ -167,7 +179,6 @@ $(function() {
   function getUsernameColor (username) {
     // Compute hash code
     var hash = 7;
-    console.log(username);
     for (var i = 0; i < username.length; i++) {
        hash = username.charCodeAt(i) + (hash << 5) - hash;
     }
@@ -188,7 +199,7 @@ $(function() {
     // When the client hits ENTER on their keyboard
     if (event.which === 13) {
       if (username) {
-        // sendMessage();
+        sendMessage();
         socket.emit('stop typing');
         typing = false;
       } else {
@@ -198,7 +209,6 @@ $(function() {
   });
 
   $inputMessage.on('input', function() {
-    console.log('vao input on');
     updateTyping();
   });
 
@@ -219,7 +229,6 @@ $(function() {
 
   // Whenever the server emits 'login', log the login message
   socket.on('login success', function (data) {
-    console.log('login success');
     connected = true;
     username = data.username;
     // Display the welcome message
@@ -237,13 +246,39 @@ $(function() {
 
   // Whenever the server emits 'typing', show the typing message
   socket.on('typing', function (data) {
-    console.log('on typingggg');
     addChatTyping(data);
   });
 
   // Whenever the server emits 'stop typing', kill the typing message
   socket.on('stop typing', function (data) {
     removeChatTyping(data);
+  });
+
+  // Whenever the server emits 'new message', update the chat body
+  socket.on('new message', function (data) {
+    addChatMessage(data);
+  });
+
+  // Whenever the server emits 'user left', log it in the chat body
+  socket.on('user left', function (data) {
+    log(data.username + ' left');
+    addParticipantsMessage(data);
+    removeChatTyping(data);
+  });
+
+  socket.on('disconnect', function () {
+    log('you have been disconnected');
+  });
+
+  socket.on('reconnect', function () {
+    log('you have been reconnected');
+    if (username) {
+      socket.emit('add user', username);
+    }
+  });
+
+  socket.on('reconnect_error', function () {
+    log('attempt to reconnect has failed');
   });
 
 });
